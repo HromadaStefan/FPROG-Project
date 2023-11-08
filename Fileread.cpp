@@ -6,61 +6,80 @@
 #include <range/v3/all.hpp>
 #include <tuple>
 
-// Funktion zum Überprüfen, ob eine Zeile ein Kapitelanfang ist
-auto isChapterStart = [](const std::string& line) {
+auto isChapterStart = [](const std::string &line)
+{
     return line.find("CHAPTER") != std::string::npos;
 };
 
-// Funktion zum Hinzufügen eines Kapitels zu einem Vektor von Kapiteln
-auto addChapter = [](std::vector<std::string> chapters, std::string currentChapter) {
-    if (!currentChapter.empty()) {
+auto addChapter = [](std::vector<std::string> chapters, std::string currentChapter)
+{
+    if (!currentChapter.empty())
+    {
         chapters.push_back(std::move(currentChapter));
         currentChapter.clear();
     }
-    return make_tuple(chapters, currentChapter);
+    auto result = std::make_tuple(chapters, currentChapter);
+    return result;
 };
 
-// Funktion, um den Dateiinhalt in Kapitel zu konvertieren
-auto readFileIntoChapters = [](const std::string& filePath) {
+auto getLines = [](const std::string filePath)
+{
     std::ifstream file(filePath);
+    std::vector<std::string> lines;
+
+    if (file.is_open())
+    {
+        std::string line;
+        while (getline(file, line))
+        {
+            lines.push_back(line);
+        }
+    }
+    else
+    {
+        return std::make_tuple(false, lines);
+    }
+
+    return std::make_tuple(true, lines);
+};
+
+auto readFileIntoChapters = [](std::string filePath)
+{
     std::vector<std::string> chapters;
     std::string currentChapter;
     bool foundFirstChapter = false;
 
-    if (file.is_open()) {
-        ranges::for_each(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>(),
-            [&](char ch) {
-                if (ch == '\n') {
-                    if (isChapterStart(currentChapter)) {
-                        if (foundFirstChapter) {
-                            auto addchapter_tuple = addChapter(chapters, currentChapter);
-                            chapters = std::get<0>(addchapter_tuple);
-                            currentChapter = std::get<1>(addchapter_tuple);
-                        }
-                        foundFirstChapter = true;
-                    }
-                    currentChapter.clear();
-                } else {
-                    currentChapter += ch;
+    auto getLinesResult = getLines(filePath);
+    auto lines = std::get<1>(getLinesResult);
+
+    if (std::get<0>(getLinesResult) == true)
+    {
+        ranges::for_each(lines, [&](const std::string &line)
+                         {
+            if (isChapterStart(line)) {
+                if (foundFirstChapter) {
+                    auto addChapterResult = addChapter(chapters, currentChapter);
+                    chapters = std::get<0>(addChapterResult);
+                    currentChapter = std::get<1>(addChapterResult);
                 }
-            });
-        // Fügen Sie das letzte Kapitel hinzu, falls vorhanden
-        addChapter(chapters, currentChapter);
-    } else {
-        std::cerr << "Could not open file: " << filePath << std::endl;
+                foundFirstChapter = true;
+            } else if (foundFirstChapter) {
+                currentChapter += line + '\n';
+            } });
+        addChapter(chapters, currentChapter); // Don't forget to add the last chapter
+    }
+    else
+    {
+        return std::make_tuple(false, chapters);
     }
 
-    return chapters;
+    return std::make_tuple(true, chapters);
 };
 
-int main() {
-    const std::string filePath = "./txt-files/war_and_peace.txt";
-    auto chapters = readFileIntoChapters(filePath);
-    
-    // Output chapters for verification
-    for (const auto& chapter : chapters) {
-        std::cout << chapter << "\n---\n";
-    }
-
+// Beispiel für die Verwendung der Funktion
+int main()
+{
+    auto chapters = readFileIntoChapters("./txt-files/war_and_peace.txt");
+    std::cout << std::get<1>(chapters).size() << " Kapitel" << std::endl;
     return 0;
 }
