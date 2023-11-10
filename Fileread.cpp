@@ -8,6 +8,9 @@
 #include <map>
 #include <algorithm>
 #include <numeric>
+#include <future>
+
+
 
 auto isChapterStart = [](const std::string &line)
 {
@@ -118,19 +121,52 @@ auto createWordList = [](const std::vector<std::string>& chaptersContent) -> std
 };
 
 // for 4) Function to filter words from a list based on another list
-/*
-auto filterWords = [](const std::vector<std::string>& wordsToFilter, const std::vector<std::string>& filterList) -> std::vector<std::string>
-{
+auto filterWords = [](const std::vector<std::string>& wordsToFilter, const std::vector<std::string>& filterList){
     std::vector<std::string> filteredWords;
 
+  /*  std::cout << "FILTER LIST" << '\n';
+    for (const auto& t : filterList) {
+        std::cout << t << '\n';
+    }*/
+
     // Use ranges::copy_if to filter words based on the filterList
-    ranges::copy_if(wordsToFilter, ranges::back_inserter(filteredWords), [&](const std::string& word)
-    {
-        return ranges::find(filterList, word) == filterList.end();
+    ranges::copy_if(wordsToFilter, ranges::back_inserter(filteredWords), [&](const std::string& word) {
+        return std::any_of(filterList.begin(), filterList.end(), [&](const std::string& filterWord) {
+            return word.find(filterWord) != std::string::npos;
+        });
     });
+/*
+    std::cout << '\n'<< "FILTERED WORDS" << '\n';
+    for (const auto& t : filteredWords) {
+        std::cout << t << '\n';
+    }*/
 
     return filteredWords;
-};*/
+};
+
+auto readTerms = [](const std::string filePath){
+    std::vector<std::string> terms;
+
+    // Open the file
+    std::ifstream inputFile(filePath);
+
+    // Check if the file is open
+    if (inputFile.is_open()) {
+        std::string term;
+
+        // Read each line from the file and add it to the vector
+        while (std::getline(inputFile, term)) {
+            terms.push_back(term);
+        }
+
+        // Close the file
+        inputFile.close();
+    } else {
+        std::cerr << "Unable to open the file: " << filePath << std::endl;
+    }
+
+    return terms;
+};
 
 // for 5) Function to count word occurrences in a list
 // Map function: takes a word and returns a key-value pair (word, 1)
@@ -147,10 +183,44 @@ auto ReduceOccurences = [](const std::map<std::string, std::vector<int>>& groupe
     return result;
 };
 
+//could not avoid using for loops here
+auto parallelMap = [](const std::vector<std::string>& wordList) {
+    std::vector<std::vector<std::pair<std::string, int>>> partialMappedData;
+    std::vector<std::pair<std::string, int>> mappedData;
+
+    // Parallelize the Map step using std::async
+    std::vector<std::future<void>> mapTasks;
+    const size_t threadCount = 5;
+    const size_t chunkSize = wordList.size() / threadCount;
+
+    for (size_t i = 0; i < threadCount; ++i) {
+        size_t startIdx = i * chunkSize;
+        size_t endIdx = (i == threadCount - 1) ? wordList.size() : startIdx + chunkSize;
+
+        mapTasks.emplace_back(std::async(std::launch::async, [&](size_t start, size_t end) {
+            std::vector<std::pair<std::string, int>> partialData;
+            std::transform(wordList.begin() + start, wordList.begin() + end, std::back_inserter(partialData), MapOccurences);
+            partialMappedData.push_back(std::move(partialData));
+        }, startIdx, endIdx));
+    }
+
+    // Wait for all mapTasks to complete
+    for (auto& task : mapTasks) {
+        task.wait();
+    }
+
+    // Combine the partial mapped data
+    for (const auto& partialData : partialMappedData) {
+        mappedData.insert(mappedData.end(), partialData.begin(), partialData.end());
+    }
+
+    return mappedData;
+};
+
 auto WordCountMapReduce = [](const std::vector<std::string>& wordList) {
     // Map step
     std::vector<std::pair<std::string, int>> mappedData;
-    std::transform(wordList.begin(), wordList.end(), std::back_inserter(mappedData), MapOccurences);
+    mappedData= parallelMap(wordList);
 
     // Group the mapped data by key
     std::map<std::string, std::vector<int>> groupedData;
@@ -172,7 +242,7 @@ int main()
     std::cout << std::get<1>(chapters).size() << " Kapitel" << std::endl;
     const std::vector<std::string> chaptersContent = std::get<1>(chapters);
 
-    std::cout << chaptersContent[0] << std::endl;
+    //std::cout << chaptersContent[0] << std::endl;
 
     // Create the word list by processing each chapter
     std::vector<std::string> wordList = createWordList(chaptersContent);
@@ -185,21 +255,49 @@ int main()
         std::cout << word << std::endl;
     }
     std::cout << "-----------------------------\n";
+*/
 
+    std::vector<std::string> peaceTerms= readTerms("./txt-files/peace_terms.txt");
+    std::vector<std::string> warTerms= readTerms("./txt-files/war_terms.txt");
 
-    //Print the word occurrences
-    std::cout << "Word Occurrences:\n";
-    for (const auto& entry : finalResult)
-    {
-        std::cout << entry.first << ": " << entry.second << " occurrences\n";
-    }*/
+ /*   // Print the terms to verify
+    std::cout << "PEACE" << '\n';
+    for (const auto& t : peaceTerms) {
+        std::cout << t << '\n';
+    }
 
-    auto reducedData = WordCountMapReduce(wordList);
+    std::cout << "WAR" << '\n';
+    for (const auto& t : warTerms) {
+        std::cout << t << '\n';
+    }
+*/
+    std::vector<std::string> filteredPeace= filterWords(wordList, peaceTerms);
+    std::vector<std::string> filteredWar= filterWords(wordList, warTerms);
 
+    // Print the terms to verify
+    std::cout << "PEACE FILTERED" << '\n';
+    for (const auto& t : filteredPeace) {
+        std::cout << t << '\n';
+    }
+
+    std::cout << "WAR FILTERED" << '\n';
+    for (const auto& t : filteredWar) {
+        std::cout << t << '\n';
+    }
+
+    // Parallelize the WordCountMapReduce function into 5 threads using std::async
+    auto mapReduceTask = std::async(std::launch::async, [&]() {
+        return WordCountMapReduce(wordList);
+    });
+
+    // Wait for the mapReduceTask to complete
+    auto reducedData = mapReduceTask.get();
+
+    /*
     // Print the result
     for (const auto& entry : reducedData) {
         std::cout << entry.first << ": " << entry.second << std::endl;
-    }
+    }*/
 
     return 0;
 }
