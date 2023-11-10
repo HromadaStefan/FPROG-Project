@@ -120,13 +120,21 @@ auto createWordList = [](const std::vector<std::string>& chaptersContent) -> std
     return wordList;
 };
 
+//TODO ich versteh nicht warum das nicht funktioniert
 // for 4) Function to filter words from a list based on another list
 auto filterWords = [](const std::vector<std::string>& wordsToFilter, const std::vector<std::string>& filterList){
     std::vector<std::string> filteredWords;
 
-  /*  std::cout << "FILTER LIST" << '\n';
-    for (const auto& t : filterList) {
-        std::cout << t << '\n';
+/*    std::vector<std::string> testWords;
+
+    for (const auto& word : wordsToFilter) {
+        bool shouldFilter = std::any_of(filterList.begin(), filterList.end(), [&](const std::string& filterWord) {
+            return word.find(filterWord) != std::string::npos;
+        });
+
+        if (shouldFilter) {
+            testWords.push_back(word);
+        }
     }*/
 
     // Use ranges::copy_if to filter words based on the filterList
@@ -135,11 +143,6 @@ auto filterWords = [](const std::vector<std::string>& wordsToFilter, const std::
             return word.find(filterWord) != std::string::npos;
         });
     });
-/*
-    std::cout << '\n'<< "FILTERED WORDS" << '\n';
-    for (const auto& t : filteredWords) {
-        std::cout << t << '\n';
-    }*/
 
     return filteredWords;
 };
@@ -259,8 +262,8 @@ int main()
 
     std::vector<std::string> peaceTerms= readTerms("./txt-files/peace_terms.txt");
     std::vector<std::string> warTerms= readTerms("./txt-files/war_terms.txt");
-
- /*   // Print the terms to verify
+/*
+    // Print the terms to verify
     std::cout << "PEACE" << '\n';
     for (const auto& t : peaceTerms) {
         std::cout << t << '\n';
@@ -271,23 +274,25 @@ int main()
         std::cout << t << '\n';
     }
 */
-    std::vector<std::string> filteredPeace= filterWords(wordList, peaceTerms);
-    std::vector<std::string> filteredWar= filterWords(wordList, warTerms);
+
+    std::vector<std::string> filteredPeace = filterWords(wordList, peaceTerms);
+    std::vector<std::string> filteredWar = filterWords(wordList, warTerms);
+
 
     // Print the terms to verify
     std::cout << "PEACE FILTERED" << '\n';
     for (const auto& t : filteredPeace) {
         std::cout << t << '\n';
     }
-
+/*
     std::cout << "WAR FILTERED" << '\n';
     for (const auto& t : filteredWar) {
         std::cout << t << '\n';
-    }
+    }*/
 
     // Parallelize the WordCountMapReduce function into 5 threads using std::async
     auto mapReduceTask = std::async(std::launch::async, [&]() {
-        return WordCountMapReduce(wordList);
+        return WordCountMapReduce(filteredWar);
     });
 
     // Wait for the mapReduceTask to complete
