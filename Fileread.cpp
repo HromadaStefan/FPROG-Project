@@ -10,21 +10,21 @@
 #include <numeric>
 #include <future>
 
-
-
 auto isChapterStart = [](const std::string &line)
 {
     return line.find("CHAPTER") != std::string::npos;
 };
 
-auto addChapter = [](const std::vector<std::string> chapters, const std::string currentChapter){
+auto addChapter = [](const std::vector<std::string> chapters, const std::string currentChapter)
+{
     if (!currentChapter.empty())
     {
         auto updatedChapters = chapters;
         updatedChapters.push_back(std::move(currentChapter));
         return std::make_tuple(updatedChapters, std::string());
     }
-    else{
+    else
+    {
         return std::make_tuple(chapters, currentChapter);
     }
 };
@@ -41,6 +41,7 @@ auto getLines = [](const std::string filePath)
         {
             lines.push_back(line);
         }
+        file.close();
     }
     else
     {
@@ -73,7 +74,11 @@ auto readFileIntoChapters = [](const std::string filePath)
             } else if (foundFirstChapter) {
                 currentChapter += line + '\n';
             } });
-        addChapter(chapters, currentChapter); // Don't forget to add the last chapter
+
+        auto addChapterResult = addChapter(chapters, currentChapter);
+        chapters = std::get<0>(addChapterResult);
+        currentChapter = std::get<1>(addChapterResult);
+
     }
     else
     {
@@ -83,8 +88,8 @@ auto readFileIntoChapters = [](const std::string filePath)
     return std::make_tuple(true, chapters);
 };
 
-//for 3) Tokenize text
-auto tokenizeChapter = [](const std::string& chapter) -> std::vector<std::string>
+// for 3) Tokenize text
+auto tokenizeChapter = [](const std::string chapter) -> std::vector<std::string>
 {
     std::vector<std::string> words;
 
@@ -93,78 +98,78 @@ auto tokenizeChapter = [](const std::string& chapter) -> std::vector<std::string
     ranges::copy(ranges::istream<std::string>(iss), ranges::back_inserter(words));
 
     // Remove punctuation and convert to lowercase using ranges::transform and lambdas
-    ranges::transform(words, words.begin(), [](std::string& word)
-    {
+    ranges::transform(words, words.begin(), [](std::string &word)
+                      {
         auto isPunctuation = [](char c) { return std::ispunct(c); };
         word.erase(ranges::remove_if(word, isPunctuation), word.end());
         ranges::transform(word, word.begin(), ::tolower);
-        return word;
-    });
+        return word; });
 
     return words;
 };
 
-//for 3) Tokenize text
-auto createWordList = [](const std::vector<std::string>& chaptersContent) -> std::vector<std::string>
+// for 3) Tokenize text
+
+auto createWordList = [](const std::vector<std::string> &chaptersContent) -> std::vector<std::string>
 {
     std::vector<std::string> wordList;
 
     // Iterate through each chapter using ranges::for_each
-    ranges::for_each(chaptersContent, [&](const std::string& chapter)
-    {
+    ranges::for_each(chaptersContent, [&](const std::string &chapter)
+                     {
         // Tokenize the current chapter and add words to the word list
         auto chapterWords = tokenizeChapter(chapter);
-        wordList.insert(wordList.end(), chapterWords.begin(), chapterWords.end());
-    });
+        wordList.insert(wordList.end(), chapterWords.begin(), chapterWords.end()); });
 
     return wordList;
 };
 
-//TODO ich versteh nicht warum das nicht funktioniert
-// for 4) Function to filter words from a list based on another list
-auto filterWords = [](const std::vector<std::string>& wordsToFilter, const std::vector<std::string>& filterList){
+
+// TODO ich versteh nicht warum das nicht funktioniert
+//  for 4) Function to filter words from a list based on another list
+auto filterWords = [](const std::vector<std::string> &wordsToFilter, const std::vector<std::string> &filterList)
+{
     std::vector<std::string> filteredWords;
 
-/*    std::vector<std::string> testWords;
+    std::vector<std::string> filter = filterList;
 
-    for (const auto& word : wordsToFilter) {
-        bool shouldFilter = std::any_of(filterList.begin(), filterList.end(), [&](const std::string& filterWord) {
-            return word.find(filterWord) != std::string::npos;
+   std::copy_if(wordsToFilter.begin(), wordsToFilter.end(), std::back_inserter(filteredWords), [&](const std::string &word)
+   {
+        return std::any_of(filterList.begin(), filterList.end(), [&](const std::string &filterWord)
+        {
+            return word == filterWord;
         });
-
-        if (shouldFilter) {
-            testWords.push_back(word);
-        }
-    }*/
-
-    // Use ranges::copy_if to filter words based on the filterList
-    ranges::copy_if(wordsToFilter, ranges::back_inserter(filteredWords), [&](const std::string& word) {
-        return std::any_of(filterList.begin(), filterList.end(), [&](const std::string& filterWord) {
-            return word.find(filterWord) != std::string::npos;
-        });
-    });
+   });
 
     return filteredWords;
 };
 
-auto readTerms = [](const std::string filePath){
+auto readTerms = [](const std::string filePath)
+{
     std::vector<std::string> terms;
 
     // Open the file
     std::ifstream inputFile(filePath);
 
     // Check if the file is open
-    if (inputFile.is_open()) {
+    if (inputFile.is_open())
+    {
         std::string term;
 
         // Read each line from the file and add it to the vector
-        while (std::getline(inputFile, term)) {
-            terms.push_back(term);
+        while (std::getline(inputFile, term))
+        {
+            // hier war der Fehler für die Filterfunktion: Jedes element der terms hatte ein \n am ende
+            term.pop_back();
+            std::string copy = term;
+            terms.push_back(copy);
         }
 
         // Close the file
         inputFile.close();
-    } else {
+    }
+    else
+    {
         std::cerr << "Unable to open the file: " << filePath << std::endl;
     }
 
@@ -173,21 +178,23 @@ auto readTerms = [](const std::string filePath){
 
 // for 5) Function to count word occurrences in a list
 // Map function: takes a word and returns a key-value pair (word, 1)
-auto MapOccurences = [](const std::string& word) {
+auto MapOccurences = [](const std::string &word)
+{
     return std::make_pair(word, 1);
 };
 
 // Reduce function: takes a key-value pair (word, [1, 1, ...]) and sums the values
-auto ReduceOccurences = [](const std::map<std::string, std::vector<int>>& groupedData) {
+auto ReduceOccurences = [](const std::map<std::string, std::vector<int>> &groupedData)
+{
     std::map<std::string, int> result;
-    ranges::for_each(groupedData, [&result](const auto& pair) {
-        result[pair.first] = std::accumulate(pair.second.begin(), pair.second.end(), 0);
-    });
+    ranges::for_each(groupedData, [&result](const auto &pair)
+                     { result[pair.first] = std::accumulate(pair.second.begin(), pair.second.end(), 0); });
     return result;
 };
 
-//could not avoid using for loops here
-auto parallelMap = [](const std::vector<std::string>& wordList) {
+// could not avoid using for loops here
+auto parallelMap = [](const std::vector<std::string> &wordList)
+{
     std::vector<std::vector<std::pair<std::string, int>>> partialMappedData;
     std::vector<std::pair<std::string, int>> mappedData;
 
@@ -196,47 +203,51 @@ auto parallelMap = [](const std::vector<std::string>& wordList) {
     const size_t threadCount = 5;
     const size_t chunkSize = wordList.size() / threadCount;
 
-    for (size_t i = 0; i < threadCount; ++i) {
+    for (size_t i = 0; i < threadCount; ++i)
+    {
         size_t startIdx = i * chunkSize;
         size_t endIdx = (i == threadCount - 1) ? wordList.size() : startIdx + chunkSize;
 
-        mapTasks.emplace_back(std::async(std::launch::async, [&](size_t start, size_t end) {
+        mapTasks.emplace_back(std::async(
+            std::launch::async, [&](size_t start, size_t end)
+            {
             std::vector<std::pair<std::string, int>> partialData;
             std::transform(wordList.begin() + start, wordList.begin() + end, std::back_inserter(partialData), MapOccurences);
-            partialMappedData.push_back(std::move(partialData));
-        }, startIdx, endIdx));
+            partialMappedData.push_back(std::move(partialData)); },
+            startIdx, endIdx));
     }
 
     // Wait for all mapTasks to complete
-    for (auto& task : mapTasks) {
+    for (auto &task : mapTasks)
+    {
         task.wait();
     }
 
     // Combine the partial mapped data
-    for (const auto& partialData : partialMappedData) {
+    for (const auto &partialData : partialMappedData)
+    {
         mappedData.insert(mappedData.end(), partialData.begin(), partialData.end());
     }
 
     return mappedData;
 };
 
-auto WordCountMapReduce = [](const std::vector<std::string>& wordList) {
+auto WordCountMapReduce = [](const std::vector<std::string> &wordList)
+{
     // Map step
     std::vector<std::pair<std::string, int>> mappedData;
-    mappedData= parallelMap(wordList);
+    mappedData = parallelMap(wordList);
 
     // Group the mapped data by key
     std::map<std::string, std::vector<int>> groupedData;
-    ranges::for_each(mappedData, [&](const auto& pair) {
-        groupedData[pair.first].push_back(pair.second);
-    });
+    ranges::for_each(mappedData, [&](const auto &pair)
+                     { groupedData[pair.first].push_back(pair.second); });
 
     // Reduce step
     auto reducedData = ReduceOccurences(groupedData);
 
     return reducedData;
 };
-
 
 // Beispiel für die Verwendung der Funktion
 int main()
@@ -245,55 +256,32 @@ int main()
     std::cout << std::get<1>(chapters).size() << " Kapitel" << std::endl;
     const std::vector<std::string> chaptersContent = std::get<1>(chapters);
 
-    //std::cout << chaptersContent[0] << std::endl;
-
     // Create the word list by processing each chapter
     std::vector<std::string> wordList = createWordList(chaptersContent);
 
-/* 
-    // Print the complete tokenized word list
-    std::cout << "Complete Tokenized Word List:\n";
-    for (const auto& word : wordList)
-    {
-        std::cout << word << std::endl;
-    }
-    std::cout << "-----------------------------\n";
-*/
-
-    std::vector<std::string> peaceTerms= readTerms("./txt-files/peace_terms.txt");
-    std::vector<std::string> warTerms= readTerms("./txt-files/war_terms.txt");
-/*
-    // Print the terms to verify
-    std::cout << "PEACE" << '\n';
-    for (const auto& t : peaceTerms) {
-        std::cout << t << '\n';
-    }
-
-    std::cout << "WAR" << '\n';
-    for (const auto& t : warTerms) {
-        std::cout << t << '\n';
-    }
-*/
+    std::vector<std::string> peaceTerms = readTerms("./txt-files/peace_terms.txt");
+    std::vector<std::string> warTerms = readTerms("./txt-files/war_terms.txt");
 
     std::vector<std::string> filteredPeace = filterWords(wordList, peaceTerms);
     std::vector<std::string> filteredWar = filterWords(wordList, warTerms);
 
-
     // Print the terms to verify
-    std::cout << "PEACE FILTERED" << '\n';
-    for (const auto& t : filteredPeace) {
-        std::cout << t << '\n';
+
+    std::cout << "PEACE FILTERED" << std::endl;
+    for (const auto &t : filteredPeace)
+    {
+        std::cout << t << std::endl;
     }
-/*
-    std::cout << "WAR FILTERED" << '\n';
-    for (const auto& t : filteredWar) {
-        std::cout << t << '\n';
-    }*/
+
+    std::cout << "WAR FILTERED" << std::endl;
+    for (const auto &t : filteredWar)
+    {
+        std::cout << t << std::endl;
+    }
 
     // Parallelize the WordCountMapReduce function into 5 threads using std::async
-    auto mapReduceTask = std::async(std::launch::async, [&]() {
-        return WordCountMapReduce(filteredWar);
-    });
+    auto mapReduceTask = std::async(std::launch::async, [&]()
+                                    { return WordCountMapReduce(filteredWar); });
 
     // Wait for the mapReduceTask to complete
     auto reducedData = mapReduceTask.get();
