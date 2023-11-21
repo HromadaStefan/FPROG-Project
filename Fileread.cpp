@@ -109,7 +109,7 @@ auto tokenizeChapter = [](const std::string chapter) -> std::vector<std::string>
 };
 
 // for 3) Tokenize text
-
+/*
 auto createWordList = [](const std::vector<std::string> &chaptersContent) -> std::vector<std::string>
 {
     std::vector<std::string> wordList;
@@ -122,7 +122,7 @@ auto createWordList = [](const std::vector<std::string> &chaptersContent) -> std
         wordList.insert(wordList.end(), chapterWords.begin(), chapterWords.end()); });
 
     return wordList;
-};
+};*/
 
 
 // TODO ich versteh nicht warum das nicht funktioniert
@@ -176,6 +176,7 @@ auto readTerms = [](const std::string filePath)
     return terms;
 };
 
+
 // for 5) Function to count word occurrences in a list
 // Map function: takes a word and returns a key-value pair (word, 1)
 auto MapOccurences = [](const std::string &word)
@@ -195,12 +196,12 @@ auto ReduceOccurences = [](const std::map<std::string, std::vector<int>> &groupe
 // could not avoid using for loops here
 auto parallelMap = [](const std::vector<std::string> &wordList)
 {
-    std::vector<std::vector<std::pair<std::string, int>>> partialMappedData;
     std::vector<std::pair<std::string, int>> mappedData;
 
     // Parallelize the Map step using std::async
-    std::vector<std::future<void>> mapTasks;
-    const size_t threadCount = 5;
+    std::vector<std::shared_future<void>> mapTasks;  // Use shared_future
+    std::shared_ptr<std::vector<std::pair<std::string, int>>> sharedPartialMappedData = std::make_shared<std::vector<std::pair<std::string, int>>>();
+    const size_t threadCount = 1;
     const size_t chunkSize = wordList.size() / threadCount;
 
     for (size_t i = 0; i < threadCount; ++i)
@@ -209,11 +210,11 @@ auto parallelMap = [](const std::vector<std::string> &wordList)
         size_t endIdx = (i == threadCount - 1) ? wordList.size() : startIdx + chunkSize;
 
         mapTasks.emplace_back(std::async(
-            std::launch::async, [&](size_t start, size_t end)
-            {
-            std::vector<std::pair<std::string, int>> partialData;
-            std::transform(wordList.begin() + start, wordList.begin() + end, std::back_inserter(partialData), MapOccurences);
-            partialMappedData.push_back(std::move(partialData)); },
+            std::launch::async, [&](size_t start, size_t end) {
+                std::vector<std::pair<std::string, int>> partialData;
+                std::transform(wordList.begin() + start, wordList.begin() + end, std::back_inserter(partialData), MapOccurences);
+                sharedPartialMappedData->insert(sharedPartialMappedData->end(), partialData.begin(), partialData.end());
+            },
             startIdx, endIdx));
     }
 
@@ -223,11 +224,7 @@ auto parallelMap = [](const std::vector<std::string> &wordList)
         task.wait();
     }
 
-    // Combine the partial mapped data
-    for (const auto &partialData : partialMappedData)
-    {
-        mappedData.insert(mappedData.end(), partialData.begin(), partialData.end());
-    }
+    mappedData = *sharedPartialMappedData;
 
     return mappedData;
 };
@@ -249,6 +246,22 @@ auto WordCountMapReduce = [](const std::vector<std::string> &wordList)
     return reducedData;
 };
 
+//for 6) calcualte term density
+// Function to calculate term density for a given set of words
+auto calculateTermDensity = [](const std::vector<std::string>& words, const std::vector<std::string>& filterWords) {
+    long double termDensity;
+
+    termDensity= filterWords.size()/words.size();
+
+    std::cout << filterWords.size() <<" FILTERWORDSSIZE" << std::endl;
+    std::cout << words.size() <<" WORDSSIZE" << std::endl;
+
+
+    return termDensity*1000;
+};
+
+
+
 // Beispiel für die Verwendung der Funktion
 int main()
 {
@@ -257,13 +270,69 @@ int main()
     const std::vector<std::string> chaptersContent = std::get<1>(chapters);
 
     // Create the word list by processing each chapter
-    std::vector<std::string> wordList = createWordList(chaptersContent);
+    //std::vector<std::string> wordList = createWordList(chaptersContent);
 
     std::vector<std::string> peaceTerms = readTerms("./txt-files/peace_terms.txt");
     std::vector<std::string> warTerms = readTerms("./txt-files/war_terms.txt");
 
-    std::vector<std::string> filteredPeace = filterWords(wordList, peaceTerms);
-    std::vector<std::string> filteredWar = filterWords(wordList, warTerms);
+    std::vector<std::string> filteredPeace;
+    std::vector<std::string> filteredWar;
+
+    std::vector<std::vector<std::string>> tokenizedChapters;
+    std::vector<std::vector<std::string>> warFilteredChapters;
+    std::vector<std::vector<std::string>> peaceFilteredChapters;
+    int counter=1;
+
+    // Iterate through each chapter using ranges::for_each
+    ranges::for_each(chaptersContent, [&](const std::string &chapter){
+        // Tokenize the current chapter and add words to the word list
+        auto chapterWords = tokenizeChapter(chapter);
+        tokenizedChapters.push_back(chapterWords);
+
+        //filterWords for chapters
+        filteredPeace = filterWords(chapterWords, peaceTerms);
+        filteredWar = filterWords(chapterWords, warTerms);
+        warFilteredChapters.push_back(filteredWar);
+        peaceFilteredChapters.push_back(filteredPeace);
+
+        
+        // Parallelize the WordCountMapReduce function into 5 threads using std::async
+        auto mapReduceTask = std::async(std::launch::async, [&](){ 
+            return WordCountMapReduce(filteredWar); 
+        });
+
+        
+        // Wait for the mapReduceTask to complete
+        auto reducedData = mapReduceTask.get();
+        std::cout << "NEW CHAPTER: " << counter << std::endl;
+
+        // Print the result
+        for (const auto& entry : reducedData) {
+            std::cout << entry.first << ": " << entry.second << std::endl;
+        }
+
+        //calculate term density:
+        double termDensityResult = calculateTermDensity(chapterWords, filteredWar);
+
+
+
+        
+
+
+        std::cout << termDensityResult <<"\n\n" << std::endl;
+        reducedData.clear();
+
+        
+        counter++;
+
+
+
+        //filteredWar.clear();
+        //filteredPeace.clear();
+        //tokenizedChapters.clear();           
+    });
+
+    /*
 
     // Print the terms to verify
 
@@ -286,7 +355,7 @@ int main()
     // Wait for the mapReduceTask to complete
     auto reducedData = mapReduceTask.get();
 
-    /*
+    
     // Print the result
     for (const auto& entry : reducedData) {
         std::cout << entry.first << ": " << entry.second << std::endl;
