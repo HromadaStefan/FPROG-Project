@@ -249,15 +249,43 @@ auto WordCountMapReduce = [](const std::vector<std::string> &wordList)
 //for 6) calcualte term density
 // Function to calculate term density for a given set of words
 auto calculateTermDensity = [](const std::vector<std::string>& words, const std::vector<std::string>& filterWords) {
-    long double termDensity;
+    double termDensity;
 
-    termDensity= filterWords.size()/words.size();
+    termDensity= (double(filterWords.size()*100))/(double(words.size()));
 
     std::cout << filterWords.size() <<" FILTERWORDSSIZE" << std::endl;
     std::cout << words.size() <<" WORDSSIZE" << std::endl;
+    std::cout << termDensity <<" TERMDENSITY" << std::endl;
+
+    //TODO funktioniert noch nicht so gut
+    std::vector<int> distances;
+
+    auto findOccurrences = [&](const std::string& filterWord) {
+        auto it = words.begin();
+        auto lastPosition = it;
+
+        std::cout << filterWord <<" FILTERWORD" << std::endl;
+
+        while ((it = std::find(it, words.end(), filterWord)) != words.end()) {
+            distances.push_back(std::distance(lastPosition, it));
+            std::cout << std::distance(lastPosition, it) <<" DISTANCE" << std::endl;
+            lastPosition = ++it;
+        }
+    };
+
+    std::for_each(filterWords.begin(), filterWords.end(), findOccurrences);
+
+    double totalDistance = std::accumulate(distances.begin(), distances.end(), 0.0);
+    double averageDistance = distances.empty() ? 0.0 : totalDistance / distances.size();
 
 
-    return termDensity*1000;
+
+    std::cout << averageDistance <<" AVERAGEDISTANCE" << std::endl;
+
+
+    distances.clear();
+
+    return termDensity;
 };
 
 
