@@ -230,6 +230,15 @@ auto calculateAverageDistance = [](const std::vector<int> vec)
     return average;
 };
 
+auto combineDensityAndDistance = [](const double density, const double distance){
+    return (density*10000 + distance/100);
+};
+
+auto printResult = [](const int index, const std::string value) {
+    std::cout << "Chapter " << index << ": "<< value << std::endl;
+};
+
+
 int main()
 {
     auto Chapters = read_file_by_words("./txt-files/war_and_peace.txt");
@@ -245,6 +254,12 @@ int main()
     std::vector<std::vector<std::string>> peaceFilteredChapters;
     std::vector<std::vector<std::string>> warFilteredChapters;
 
+    std::vector<double> warChapterDensities;
+    std::vector<double> peaceChapterDensities;
+
+    std::vector<std::string> chapterRelations;
+
+
     int counter=1;
 
     ranges::for_each(Chapters, [&](const std::vector<std::string> chapter) {
@@ -255,37 +270,67 @@ int main()
         warFilteredChapters.push_back(filteredWar);
 
 
-        auto mapReduceTask = std::async(std::launch::async, [&](){
+        auto mapReduceTaskWar = std::async(std::launch::async, [&](){
             return WordCountMapReduce(filteredWar);
         });
 
-        auto reducedData = mapReduceTask.get();
-        std::cout << "NEW CHAPTER: " << counter << std::endl;
+        auto mapReduceTaskPeace = std::async(std::launch::async, [&](){
+            return WordCountMapReduce(filteredPeace);
+        });
+
+        auto reducedDataWar = mapReduceTaskWar.get();
+        auto reducedDataPeace = mapReduceTaskPeace.get();
+
+ /*       std::cout << "NEW CHAPTER: " << counter << std::endl;
 
         for (const auto& entry : reducedData) {
             std::cout << entry.first << ": " << entry.second << std::endl;
-        }
+        }*/
 
         //calculate term density:
-        double termDensityResult = calculateTermDensity(chapter, filteredWar);
+        double termDensityResultWar = calculateTermDensity(chapter, filteredWar);
+        std::vector<int> termDistancesResultWar = calculateTermDistances(chapter, filteredWar);
+        double combinationDensityDistanceWar = combineDensityAndDistance(termDensityResultWar, calculateAverageDistance(termDistancesResultWar));
+        warChapterDensities.push_back(combinationDensityDistanceWar);
 
+        double termDensityResultPeace = calculateTermDensity(chapter, filteredPeace);
+        std::vector<int> termDistancesResultPeace = calculateTermDistances(chapter, filteredPeace);
+        double combinationDensityDistancePeace = combineDensityAndDistance(termDensityResultPeace, calculateAverageDistance(termDistancesResultPeace));
+        peaceChapterDensities.push_back(combinationDensityDistancePeace);
+
+        if(combinationDensityDistancePeace>combinationDensityDistanceWar){
+            chapterRelations.push_back("peace-related");
+        }
+        else if(combinationDensityDistanceWar>combinationDensityDistancePeace){
+            chapterRelations.push_back("war-related");
+        }
+        else{
+            chapterRelations.push_back("equal");
+        }
+        
+        /*
         std::cout << "Density: " << termDensityResult << std::endl;
-
-        std::vector<int> termDistancesResult = calculateTermDistances(chapter, filteredWar);
 
         std::cout << "Average Distances: " << calculateAverageDistance(termDistancesResult) << std::endl;
 
-
         for (const auto& distance : termDistancesResult) {
             std::cout << distance << std::endl;
-        }
+        }*/
 
-        reducedData.clear();
+        
+
+        reducedDataWar.clear();
+        reducedDataPeace.clear();
 
         counter++;
     });
+/*
+    // Print the results
+    for (const auto& result : resultVector) {
+        std::cout << result << std::endl;
+    }
 
-    /*
+    
     std::cout << "PEACE: " << std::endl;
     for( auto& word: filteredChapters_peace[filteredChapters_peace.size() - 1]){
         std::cout << word << std::endl;
@@ -295,6 +340,11 @@ int main()
     for( auto& word: filteredChapters_war[filteredChapters_war.size() - 1]){
         std::cout << word << std::endl;
     }*/
+
+    ranges::for_each(chapterRelations, [index = 1](std::string value) mutable {
+        printResult(index++, value);
+    });
+    
 
     return 0;
 }
