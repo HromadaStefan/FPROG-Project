@@ -10,16 +10,6 @@
 #include <numeric>
 #include <future>
 
-/*auto readWords = [](const std::string& file_path) -> std::tuple<bool, ranges::istream_view<std::string>>
-{
-    std::ifstream file(file_path);
-    if (!file.is_open()) {
-        std::cerr << "Datei konnte nicht geöffnet werden: " << file_path << '\n';
-    }
-
-    return std::make_tuple(true, ranges::istream_view<std::string>(file));
-}; */
-
 auto tokenizeChapter(const std::vector<std::string> chapter) -> std::vector<std::string>
 {
     std::vector<std::string> tokenizedChapter = chapter;
@@ -54,7 +44,6 @@ auto read_file_by_words = [](const std::string& file_path) -> std::vector<std::v
     std::vector<std::string> chapter;
 
     // Verwende ranges::for_each, um jede Zeile zu verarbeiten
-
     ranges::for_each(words, [&](const std::string& word)
     {
         if(word == "CHAPTER"){
@@ -76,8 +65,6 @@ auto read_file_by_words = [](const std::string& file_path) -> std::vector<std::v
 
     return chapters;
 };
-
-
 
 auto readTerms = [](const std::string& file_path) -> std::vector<std::string>
 {
@@ -165,7 +152,6 @@ auto parallelMap = [](const std::vector<std::string> &wordList)
     {
         task.wait();
     }
-
     mappedData = *sharedPartialMappedData;
 
     return mappedData;
@@ -235,9 +221,8 @@ auto combineDensityAndDistance = [](const double density, const double distance)
 };
 
 auto printResult = [](const int index, const std::string value) {
-    std::cout << "Chapter " << index << ": "<< value << std::endl;
+    std::cout << "Chapter " << index << ": "<< value << std::endl<< std::flush;
 };
-
 
 int main()
 {
@@ -259,9 +244,6 @@ int main()
 
     std::vector<std::string> chapterRelations;
 
-
-    int counter=1;
-
     ranges::for_each(Chapters, [&](const std::vector<std::string> chapter) {
 
         filteredPeace = filterWords(chapter, peaceTerms);
@@ -269,23 +251,14 @@ int main()
         peaceFilteredChapters.push_back(filteredPeace);
         warFilteredChapters.push_back(filteredWar);
 
-
         auto mapReduceTaskWar = std::async(std::launch::async, [&](){
             return WordCountMapReduce(filteredWar);
         });
-
         auto mapReduceTaskPeace = std::async(std::launch::async, [&](){
             return WordCountMapReduce(filteredPeace);
         });
-
         auto reducedDataWar = mapReduceTaskWar.get();
         auto reducedDataPeace = mapReduceTaskPeace.get();
-
- /*       std::cout << "NEW CHAPTER: " << counter << std::endl;
-
-        for (const auto& entry : reducedData) {
-            std::cout << entry.first << ": " << entry.second << std::endl;
-        }*/
 
         //calculate term density:
         double termDensityResultWar = calculateTermDensity(chapter, filteredWar);
@@ -307,44 +280,11 @@ int main()
         else{
             chapterRelations.push_back("equal");
         }
-        
-        /*
-        std::cout << "Density: " << termDensityResult << std::endl;
-
-        std::cout << "Average Distances: " << calculateAverageDistance(termDistancesResult) << std::endl;
-
-        for (const auto& distance : termDistancesResult) {
-            std::cout << distance << std::endl;
-        }*/
-
-        
-
-        reducedDataWar.clear();
-        reducedDataPeace.clear();
-
-        counter++;
     });
-/*
-    // Print the results
-    for (const auto& result : resultVector) {
-        std::cout << result << std::endl;
-    }
-
-    
-    std::cout << "PEACE: " << std::endl;
-    for( auto& word: filteredChapters_peace[filteredChapters_peace.size() - 1]){
-        std::cout << word << std::endl;
-    }
-
-    std::cout << "WAR: " << std::endl;
-    for( auto& word: filteredChapters_war[filteredChapters_war.size() - 1]){
-        std::cout << word << std::endl;
-    }*/
 
     ranges::for_each(chapterRelations, [index = 1](std::string value) mutable {
         printResult(index++, value);
     });
     
-
     return 0;
 }
