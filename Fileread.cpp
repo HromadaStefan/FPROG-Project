@@ -29,6 +29,7 @@ auto tokenizeChapter(const std::vector<std::string> chapter) -> std::vector<std:
     return tokenizedChapter;
 };
 
+
 auto read_file_by_words = [](const std::string& file_path) -> std::vector<std::vector<std::string>>
 {
     std::vector<std::vector<std::string>> chapters;
@@ -66,25 +67,40 @@ auto read_file_by_words = [](const std::string& file_path) -> std::vector<std::v
     return chapters;
 };
 
-auto readTerms = [](const std::string& file_path) -> std::vector<std::string>
-{
+auto filterOutcome = [](std::string word) {
+    if ((word == "peace-related" || word == "war-related") && word.size() > 0) {
+        return true;
+    }
+    return false;
+};
+
+auto auto_readTerm = [](std::string word) {
+    if (word.size() > 0) {
+        return true;
+    }
+    return false;
+};
+
+auto readOutcome = [](const std::string& file_path, const std::function<bool(std::string)>& fn) -> std::vector<std::string> {
     std::vector<std::string> terms;
 
-    std::ifstream file (file_path);
-    if(!file.is_open()) {
+    std::ifstream file(file_path);
+    if (!file.is_open()) {
         std::cerr << "Datei konnte nicht geöffnet werden: " << file_path << '\n';
         return terms;
     }
 
     auto words = ranges::istream_view<std::string>(file);
 
-    ranges::for_each(words, [&](const std::string& word)
-    {
-        terms.push_back(word);
+    ranges::for_each(words, [&](const std::string& word) {
+        if (fn(word) == true) {
+            terms.push_back(word);
+        }
     });
 
     return terms;
 };
+
 
 auto checkIfExist = [] (const std::string word, const std::vector<std::string> &filterList)
 {
@@ -224,14 +240,30 @@ auto printResult = [](const int index, const std::string value) {
     std::cout << "Chapter " << index << ": "<< value << std::endl<< std::flush;
 };
 
+auto calculateAccuracy = [](const std::vector<std::string> predicted, const std::vector<std::string> true_values) -> double{
+    int index = 0;
+    int matches = 0;
+
+    ranges::for_each(predicted, [&](std::string value) mutable {
+        if(value == true_values[index]){
+            matches++;
+        }
+        index++;
+    });
+
+    double accuracy = static_cast<double>(matches) / predicted.size();
+
+    return accuracy;
+};
+
 int main()
 {
     auto Chapters = read_file_by_words("./txt-files/war_and_peace.txt");
 
     std::cout << "Chapters: " << Chapters.size() << std::endl;
 
-    auto peaceTerms = readTerms("./txt-files/peace_terms.txt");
-    auto warTerms = readTerms("./txt-files/war_terms.txt");
+    auto peaceTerms = readOutcome("./txt-files/peace_terms.txt", auto_readTerm);
+    auto warTerms = readOutcome("./txt-files/war_terms.txt", auto_readTerm);
 
     std::vector<std::string> filteredPeace;
     std::vector<std::string> filteredWar;
@@ -282,9 +314,15 @@ int main()
         }
     });
 
+    std::vector<std::string> outcomeRelations = readOutcome("./txt-files/outcome.txt", filterOutcome);
+
     ranges::for_each(chapterRelations, [index = 1](std::string value) mutable {
         printResult(index++, value);
     });
-    
+
+    double accuracy = calculateAccuracy(chapterRelations, outcomeRelations);
+
+    std::cout << "Accuracy: " << accuracy << std::endl;
+
     return 0;
 }
